@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { apiService } from '../services/apiService';
+import { apiService } from '../services/apiService.ts';
 
 interface DashboardProps {
   setActiveTab: (tab: string) => void;

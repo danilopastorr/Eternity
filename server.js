@@ -9,7 +9,6 @@ const esbuild = require('esbuild');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Configuração do Banco de Dados
 const dbConfig = {
   host: '72.60.136.59',
   user: 'root',
@@ -24,20 +23,24 @@ app.use(cors());
 app.use(express.json());
 
 /**
- * MIDDLEWARE DE TRANSPILAÇÃO ESBUILD
- * Converte arquivos .tsx em JavaScript moderno para o navegador em tempo real.
+ * MIDDLEWARE DE TRANSPILAÇÃO INTELIGENTE
  */
 app.use(async (req, res, next) => {
   const urlPath = req.path;
-  
-  if (urlPath.endsWith('.tsx') || urlPath.endsWith('.ts')) {
-    const filePath = path.join(__dirname, urlPath);
-    
+  let filePath = path.join(__dirname, urlPath);
+
+  // Se não tem extensão, tenta encontrar .tsx ou .ts
+  if (!path.extname(filePath)) {
+    if (fs.existsSync(filePath + '.tsx')) filePath += '.tsx';
+    else if (fs.existsSync(filePath + '.ts')) filePath += '.ts';
+  }
+
+  if (filePath.endsWith('.tsx') || filePath.endsWith('.ts')) {
     if (fs.existsSync(filePath)) {
       try {
         const content = fs.readFileSync(filePath, 'utf8');
         const result = await esbuild.transform(content, {
-          loader: 'tsx',
+          loader: filePath.endsWith('.tsx') ? 'tsx' : 'ts',
           target: 'es2020',
           format: 'esm',
           jsx: 'transform',
@@ -49,9 +52,9 @@ app.use(async (req, res, next) => {
         res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
         return res.send(result.code);
       } catch (err) {
-        console.error(`[TRANSPILE ERROR] ${urlPath}:`, err.message);
+        console.error(`[ESBUILD] Erro em ${urlPath}:`, err.message);
         res.setHeader('Content-Type', 'application/javascript');
-        return res.status(500).send(`console.error("Erro esbuild: ${err.message}")`);
+        return res.status(500).send(`console.error("Erro de transpilação: ${err.message}")`);
       }
     }
   }
@@ -63,15 +66,12 @@ app.use(express.static(__dirname));
 let pool;
 try {
   pool = mysql.createPool(dbConfig);
-  console.log('✅ Pool de conexão MySQL criado.');
+  console.log('✅ Banco de dados conectado.');
 } catch (e) {
-  console.error("❌ Erro ao configurar MySQL:", e.message);
+  console.error("❌ Erro MySQL:", e.message);
 }
 
-// Rotas API
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', db: !!pool });
-});
+app.get('/api/health', (req, res) => res.json({ status: 'ok', db: !!pool }));
 
 app.post('/api/login', async (req, res) => {
   const { login, password } = req.body;
@@ -85,8 +85,7 @@ app.post('/api/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Outras rotas (CRUDs) omitidas para brevidade, mas devem seguir o mesmo padrão.
-
+// Fallback para SPA - Importante: NÃO deve capturar arquivos com extensão (css, js, tsx)
 app.get('*', (req, res) => {
   if (req.path.includes('.')) return res.status(404).send('Not Found');
   res.sendFile(path.join(__dirname, 'index.html'));
