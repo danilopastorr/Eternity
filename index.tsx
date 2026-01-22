@@ -1,18 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import Sidebar from './components/Sidebar.tsx';
-import Dashboard from './components/Dashboard.tsx';
-import ClientManager from './components/ClientManager.tsx';
-import PlanManager from './components/PlanManager.tsx';
-import CompanyManager from './components/CompanyManager.tsx';
-import RepresentativeManager from './components/RepresentativeManager.tsx';
-import FinanceManager from './components/FinanceManager.tsx';
-import SupportManager from './components/SupportManager.tsx';
-import SettingsManager from './components/SettingsManager.tsx';
-import RankingManager from './components/RankingManager.tsx';
-import CompanyEmployeesManager from './components/CompanyEmployeesManager.tsx';
-import Login from './components/Login.tsx';
+import Sidebar from './components/Sidebar';
+import Dashboard from './components/Dashboard';
+import ClientManager from './components/ClientManager';
+import PlanManager from './components/PlanManager';
+import CompanyManager from './components/CompanyManager';
+import RepresentativeManager from './components/RepresentativeManager';
+import FinanceManager from './components/FinanceManager';
+import SupportManager from './components/SupportManager';
+import SettingsManager from './components/SettingsManager';
+import RankingManager from './components/RankingManager';
+import CompanyEmployeesManager from './components/CompanyEmployeesManager';
+import Login from './components/Login';
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
