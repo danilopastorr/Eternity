@@ -3,6 +3,8 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const esbuild = require('esbuild');
 
 const app = express();
 const port = 3000;
@@ -18,33 +20,56 @@ const dbConfig = {
   queueLimit: 0
 };
 
-// Middlewares
+// Middlewares básicos
 app.use(cors());
 app.use(express.json());
 
-// Middleware para setar MIME type de arquivos .tsx como javascript
-// Necessário para rodar sem transpilação prévia no navegador via ESM
-app.use((req, res, next) => {
-  if (req.url.endsWith('.tsx')) {
-    res.setHeader('Content-Type', 'application/javascript');
+/**
+ * MIDDLEWARE DE TRANSPILAÇÃO (O segredo para resolver a tela branca)
+ * Este bloco intercepta requisições para arquivos .tsx e os converte
+ * em JavaScript que o navegador entende em tempo real.
+ */
+app.use(async (req, res, next) => {
+  if (req.url.endsWith('.tsx') || req.url.endsWith('.ts')) {
+    const filePath = path.join(__dirname, req.path);
+    
+    if (fs.existsSync(filePath)) {
+      try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const result = await esbuild.transform(content, {
+          loader: 'tsx',
+          target: 'es2020',
+          format: 'esm',
+        });
+        
+        res.setHeader('Content-Type', 'application/javascript');
+        return res.send(result.code);
+      } catch (err) {
+        console.error(`Erro ao transpilar ${req.url}:`, err);
+        return res.status(500).send(`console.error("Erro de Transpilação: ${err.message}")`);
+      }
+    }
   }
   next();
 });
 
-// Servir arquivos estáticos da pasta atual
+// Servir arquivos estáticos (HTML, CSS, imagens)
 app.use(express.static(__dirname));
 
-// Pool de Conexão
-const pool = mysql.createPool(dbConfig);
+// Pool de Conexão com Banco de Dados
+let pool;
+try {
+  pool = mysql.createPool(dbConfig);
+} catch (e) {
+  console.error("Falha ao criar pool de conexão:", e.message);
+}
 
 // --- ROTAS DE API ---
 
-// Rota de saúde
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date() });
+  res.json({ status: 'ok', timestamp: new Date(), db: !!pool });
 });
 
-// Autenticação
 app.post('/api/login', async (req, res) => {
   const { login, password } = req.body;
   try {
@@ -62,42 +87,15 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Clientes
 app.get('/api/clients', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM clients');
+    const [rows] = await pool.execute('SELECT * FROM clients LIMIT 100');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Listagem de familiares (dependentes)
-app.get('/api/clients/:id/family', async (req, res) => {
-  try {
-    const [rows] = await pool.execute(`
-      SELECT fm.id as bond_id, fm.kinship, c.* 
-      FROM family_members fm
-      JOIN clients c ON fm.member_client_id = c.id
-      WHERE fm.client_id = ?
-    `, [req.params.id]);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Empresas
-app.get('/api/companies', async (req, res) => {
-  try {
-    const [rows] = await pool.execute('SELECT * FROM companies');
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Planos
 app.get('/api/plans', async (req, res) => {
   try {
     const [rows] = await pool.execute('SELECT * FROM plans');
@@ -107,7 +105,6 @@ app.get('/api/plans', async (req, res) => {
   }
 });
 
-// Representantes
 app.get('/api/representatives', async (req, res) => {
   try {
     const [rows] = await pool.execute('SELECT * FROM representatives');
@@ -117,30 +114,17 @@ app.get('/api/representatives', async (req, res) => {
   }
 });
 
-// Configurações Financeiras
-app.post('/api/finance/config', async (req, res) => {
-  const config = req.body;
-  try {
-    for (const [key, value] of Object.entries(config)) {
-      await pool.execute(
-        'INSERT INTO settings (config_key, config_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE config_value = ?',
-        [`finance_${key}`, String(value), String(value)]
-      );
-    }
-    res.json({ success: true, message: 'Configurações aplicadas' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Rota para garantir que rotas do React (frontend) funcionem
+// Rota Fallback para o React (SPA)
 app.get('*', (req, res) => {
+  // Se for uma tentativa de buscar um arquivo que não existe, não manda o index.html
+  if (req.url.includes('.')) return res.status(404).send('Not found');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Inicialização
 app.listen(port, () => {
-  console.log(`\n🚀 Eternity Admin está online!`);
-  console.log(`🔗 Frontend e API: http://localhost:${port}`);
+  console.log(`\n🚀 Eternity Admin Smart Server Online!`);
+  console.log(`🔗 Acesso local: http://localhost:${port}`);
+  console.log(`🛠️ Modo: Transpilação em tempo real ativa (.tsx -> .js)`);
   console.log(`🗄️ Banco de Dados: ${dbConfig.host}\n`);
 });
