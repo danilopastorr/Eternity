@@ -22,8 +22,16 @@ const dbConfig = {
 app.use(cors());
 app.use(express.json());
 
+// Middleware para setar MIME type de arquivos .tsx como javascript
+// Necessário para rodar sem transpilação prévia no navegador via ESM
+app.use((req, res, next) => {
+  if (req.url.endsWith('.tsx')) {
+    res.setHeader('Content-Type', 'application/javascript');
+  }
+  next();
+});
+
 // Servir arquivos estáticos da pasta atual
-// Isso resolve o erro "Cannot GET /" entregando o index.html
 app.use(express.static(__dirname));
 
 // Pool de Conexão
