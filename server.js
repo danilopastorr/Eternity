@@ -2,11 +2,12 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const port = 3000;
 
-// Configurações do Banco de Dados (Baseado no api/config.php)
+// Configurações do Banco de Dados
 const dbConfig = {
   host: '72.60.136.59',
   user: 'root',
@@ -21,10 +22,16 @@ const dbConfig = {
 app.use(cors());
 app.use(express.json());
 
+// Servir arquivos estáticos da pasta atual
+// Isso resolve o erro "Cannot GET /" entregando o index.html
+app.use(express.static(__dirname));
+
 // Pool de Conexão
 const pool = mysql.createPool(dbConfig);
 
-// Rota de saúde para o dashboard
+// --- ROTAS DE API ---
+
+// Rota de saúde
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
@@ -57,10 +64,9 @@ app.get('/api/clients', async (req, res) => {
   }
 });
 
-// Listagem de familiares (dependentes) de um cliente específico
+// Listagem de familiares (dependentes)
 app.get('/api/clients/:id/family', async (req, res) => {
   try {
-    // Busca na tabela de relacionamento (family_members) buscando os detalhes do cliente vinculado
     const [rows] = await pool.execute(`
       SELECT fm.id as bond_id, fm.kinship, c.* 
       FROM family_members fm
@@ -107,7 +113,6 @@ app.get('/api/representatives', async (req, res) => {
 app.post('/api/finance/config', async (req, res) => {
   const config = req.body;
   try {
-    // Exemplo de persistência das chaves no banco
     for (const [key, value] of Object.entries(config)) {
       await pool.execute(
         'INSERT INTO settings (config_key, config_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE config_value = ?',
@@ -120,8 +125,14 @@ app.post('/api/finance/config', async (req, res) => {
   }
 });
 
-// Inicialização do Servidor
+// Rota para garantir que rotas do React (frontend) funcionem
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Inicialização
 app.listen(port, () => {
-  console.log(`Servidor Eternity rodando em http://localhost:${port}`);
-  console.log(`Banco de Dados: ${dbConfig.host}`);
+  console.log(`\n🚀 Eternity Admin está online!`);
+  console.log(`🔗 Frontend e API: http://localhost:${port}`);
+  console.log(`🗄️ Banco de Dados: ${dbConfig.host}\n`);
 });
